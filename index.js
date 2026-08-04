@@ -2,19 +2,19 @@ const {
   Client, 
   GatewayIntentBits, 
   EmbedBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
-  ComponentType 
+  ModalBuilder, 
+  TextInputBuilder, 
+  TextInputStyle, 
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require('discord.js');
 require('dotenv').config();
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.GuildMessages
   ]
 });
 
@@ -22,126 +22,116 @@ client.once('ready', () => {
   console.log(`✅ VIPERZ SMP Whitelist Bot active as ${client.user.tag}`);
 });
 
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+// Admin Command to post the permanent registration panel in a channel
+client.on('messageCreate', async (message) => {
+  if (message.content === '!setup-whitelist' && message.member.permissions.has('Administrator')) {
+    const embed = new EmbedBuilder()
+      .setTitle('🐍 VIPERZ SMP — Squad Whitelist Registration')
+      .setDescription('Click the button below to register your 4-player team for the VIPERZ SMP!')
+      .setColor(0x00FF7F);
 
-  if (interaction.commandName === 'register-squad') {
-    // 1. Immediately defer reply to prevent "Application did not respond" timeout (3-second limit)
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('open_registration_modal')
+        .setLabel('📝 Register Squad')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
+  }
+});
+
+// Interaction Handling (Buttons & Modals)
+client.on('interactionCreate', async (interaction) => {
+  
+  // 1. When user clicks "Register Squad" Button
+  if (interaction.isButton() && interaction.customId === 'open_registration_modal') {
+    const modal = new ModalBuilder()
+      .setCustomId('squad_modal_form')
+      .setTitle('VIPERZ SMP Squad Form');
+
+    const teamNameInput = new TextInputBuilder()
+      .setCustomId('team_name')
+      .setLabel('Team Name')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const leaderInput = new TextInputBuilder()
+      .setCustomId('p1_info')
+      .setLabel('Player 1 (Leader) - IGN & Discord')
+      .setPlaceholder('IGN: Steve | Tag: @LeaderTag')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const p2Input = new TextInputBuilder()
+      .setCustomId('p2_info')
+      .setLabel('Player 2 - IGN & Discord')
+      .setPlaceholder('IGN: Alex | Tag: @P2Tag')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const p3Input = new TextInputBuilder()
+      .setCustomId('p3_info')
+      .setLabel('Player 3 - IGN & Discord')
+      .setPlaceholder('IGN: Notch | Tag: @P3Tag')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const p4Input = new TextInputBuilder()
+      .setCustomId('p4_info')
+      .setLabel('Player 4 - IGN & Discord')
+      .setPlaceholder('IGN: Herobrine | Tag: @P4Tag')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(teamNameInput),
+      new ActionRowBuilder().addComponents(leaderInput),
+      new ActionRowBuilder().addComponents(p2Input),
+      new ActionRowBuilder().addComponents(p3Input),
+      new ActionRowBuilder().addComponents(p4Input)
+    );
+
+    // Show modal immediately (0 ms response latency)
+    await interaction.showModal(modal);
+  }
+
+  // 2. When user submits the Modal Form
+  if (interaction.isModalSubmit() && interaction.customId === 'squad_modal_form') {
     await interaction.deferReply({ ephemeral: true });
 
-    const user = interaction.user;
+    const teamName = interaction.fields.getTextInputValue('team_name');
+    const p1 = interaction.fields.getTextInputValue('p1_info');
+    const p2 = interaction.fields.getTextInputValue('p2_info');
+    const p3 = interaction.fields.getTextInputValue('p3_info');
+    const p4 = interaction.fields.getTextInputValue('p4_info');
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🐍 VIPERZ SMP Squad Submission — ${teamName}`)
+      .setColor(0x00FF7F)
+      .addFields(
+        { name: '🛡️ Team Name', value: teamName, inline: false },
+        { name: '👑 Player 1 (Leader)', value: p1, inline: true },
+        { name: '⚔️ Player 2', value: p2, inline: true },
+        { name: '⚔️ Player 3', value: p3, inline: true },
+        { name: '⚔️ Player 4', value: p4, inline: true },
+        { name: '📋 Rules Agreement', value: '✅ Accepted upon modal submission', inline: false }
+      )
+      .setFooter({ text: 'VIPERZ SMP Whitelist System' })
+      .setTimestamp();
 
     try {
-      // 2. Try creating DM
-      const dmChannel = await user.createDM();
-      
-      // Notify user in the channel that DM was sent
-      await interaction.editReply({ 
-        content: '📬 Check your Direct Messages to fill out the team registration form!' 
-      });
-
-      const askQuestion = async (queryText) => {
-        await dmChannel.send(queryText);
-        const collected = await dmChannel.awaitMessages({
-          filter: m => m.author.id === user.id,
-          max: 1,
-          time: 300000, // 5 minute timeout per response
-          errors: ['time']
-        });
-        return collected.first().content.trim();
-      };
-
-      await dmChannel.send('🐍 **VIPERZ SMP — Squad Whitelist Registration**\nPlease answer the questions below to register your 4-player team.');
-
-      // Collect Team Name
-      const teamName = await askQuestion('📌 **What is your Team Name?**');
-
-      // Collect Player Details
-      const players = [];
-
-      for (let i = 1; i <= 4; i++) {
-        const roleLabel = i === 1 ? 'Player 1 (Team Leader)' : `Player ${i}`;
-        await dmChannel.send(`\n--- **${roleLabel} Details** ---`);
-        
-        const ign = await askQuestion(`🎮 Enter **${roleLabel}'s Minecraft IGN**:`);
-        const discordTag = await askQuestion(`🏷️ Enter **${roleLabel}'s Discord Mention or Tag** (e.g., @User):`);
-        const role = await askQuestion(`⚔️ Enter **${roleLabel}'s Primary Role** (e.g., Builder, PVPer, Redstoner):`);
-
-        players.push({ ign, discordTag, role, index: i });
-      }
-
-      // Rules Agreement
-      const agreementRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('accept_rules')
-          .setLabel('I Agree & Confirm')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('decline_rules')
-          .setLabel('Cancel')
-          .setStyle(ButtonStyle.Danger)
-      );
-
-      const agreementMsg = await dmChannel.send({
-        content: '📜 **Server Agreement**:\nDo you and your team agree to follow all VIPERZ SMP server rules and attend the official launch gathering?',
-        components: [agreementRow]
-      });
-
-      const buttonInteraction = await agreementMsg.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        time: 60000
-      });
-
-      if (buttonInteraction.customId === 'decline_rules') {
-        await buttonInteraction.reply('❌ Registration cancelled.');
-        return;
-      }
-
-      await buttonInteraction.reply('✅ Registration submitted successfully! Staff will process your whitelist.');
-
-      // Build Submission Embed
-      const embed = new EmbedBuilder()
-        .setTitle(`🐍 VIPERZ SMP Squad Whitelist Submission — ${teamName}`)
-        .setColor(0x00FF7F)
-        .addFields(
-          { name: '🛡️ Team Name', value: teamName, inline: true },
-          { name: '👑 Leader Mention', value: players[0].discordTag, inline: true },
-          { name: '\u200B', value: '\u200B', inline: false }
-        )
-        .setFooter({ text: 'VIPERZ SMP Whitelist System' })
-        .setTimestamp();
-
-      players.forEach((p) => {
-        embed.addFields({
-          name: `Player ${p.index} ${p.index === 1 ? '(Leader)' : ''}`,
-          value: `**IGN:** \`${p.ign}\`\n**Discord:** ${p.discordTag}\n**Role:** ${p.role}`,
-          inline: true
-        });
-      });
-
-      embed.addFields({
-        name: '📋 Rules & Gathering Agreement',
-        value: '✅ Accepted by Team Leader',
-        inline: false
-      });
-
-      // Output Minecraft Whitelist Commands
-      const whitelistCommands = players.map(p => `whitelist add ${p.ign}`).join('\n');
-
       const logChannel = await client.channels.fetch(process.env.LOG_CHANNEL_ID);
       if (logChannel) {
         await logChannel.send({
-          content: `📥 **New Registration Submitted by ${user}**\n\`\`\`bash\n# Minecraft Whitelist Commands\n${whitelistCommands}\n\`\`\``,
+          content: `📥 **New Whitelist Submission by ${interaction.user}**`,
           embeds: [embed]
         });
       }
-
+      await interaction.editReply({ content: '✅ Squad registration submitted successfully!' });
     } catch (err) {
-      console.error(err);
-      // Handles blocked Direct Messages or timeouts gracefully
-      await interaction.editReply({ 
-        content: '⚠️ Failed to start registration. Please make sure your **Direct Messages (DMs)** are enabled in Server Privacy Settings and try again!' 
-      });
+      console.error('Error logging submission:', err);
+      await interaction.editReply({ content: '⚠️ Submission recorded, but failed to post to log channel. Check LOG_CHANNEL_ID.' });
     }
   }
 });
