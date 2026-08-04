@@ -1,7 +1,7 @@
 {
   "name": "viperz-smp-whitelist-bot",
-  "version": "2.0.0",
-  "description": "VIPERZ SMP Whitelist Bot",
+  "version": "1.0.0",
+  "description": "Discord whitelist registration bot for VIPERZ SMP",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
