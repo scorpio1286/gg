@@ -1,0 +1,17 @@
+{
+  "name": "viperz-smp-whitelist-bot",
+  "version": "1.0.0",
+  "description": "Discord whitelist registration bot for VIPERZ SMP",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy-commands": "node deploy-commands.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
+  }
+}
