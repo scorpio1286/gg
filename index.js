@@ -26,13 +26,18 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'register-squad') {
+    // 1. Immediately defer reply to prevent "Application did not respond" timeout (3-second limit)
+    await interaction.deferReply({ ephemeral: true });
+
     const user = interaction.user;
 
     try {
+      // 2. Try creating DM
       const dmChannel = await user.createDM();
-      await interaction.reply({ 
-        content: '📬 Check your Direct Messages to fill out the team registration form!', 
-        ephemeral: true 
+      
+      // Notify user in the channel that DM was sent
+      await interaction.editReply({ 
+        content: '📬 Check your Direct Messages to fill out the team registration form!' 
       });
 
       const askQuestion = async (queryText) => {
@@ -48,10 +53,10 @@ client.on('interactionCreate', async (interaction) => {
 
       await dmChannel.send('🐍 **VIPERZ SMP — Squad Whitelist Registration**\nPlease answer the questions below to register your 4-player team.');
 
-      // 1. Team Name
+      // Collect Team Name
       const teamName = await askQuestion('📌 **What is your Team Name?**');
 
-      // 2. Collect Player Details
+      // Collect Player Details
       const players = [];
 
       for (let i = 1; i <= 4; i++) {
@@ -65,7 +70,7 @@ client.on('interactionCreate', async (interaction) => {
         players.push({ ign, discordTag, role, index: i });
       }
 
-      // 3. Rules Agreement
+      // Rules Agreement
       const agreementRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('accept_rules')
@@ -94,7 +99,7 @@ client.on('interactionCreate', async (interaction) => {
 
       await buttonInteraction.reply('✅ Registration submitted successfully! Staff will process your whitelist.');
 
-      // 4. Submission Embed
+      // Build Submission Embed
       const embed = new EmbedBuilder()
         .setTitle(`🐍 VIPERZ SMP Squad Whitelist Submission — ${teamName}`)
         .setColor(0x00FF7F)
@@ -120,7 +125,7 @@ client.on('interactionCreate', async (interaction) => {
         inline: false
       });
 
-      // 5. In-Game Commands Block
+      // Output Minecraft Whitelist Commands
       const whitelistCommands = players.map(p => `whitelist add ${p.ign}`).join('\n');
 
       const logChannel = await client.channels.fetch(process.env.LOG_CHANNEL_ID);
@@ -133,7 +138,10 @@ client.on('interactionCreate', async (interaction) => {
 
     } catch (err) {
       console.error(err);
-      await user.send('⚠️ Registration timed out or failed. Please run `/register-squad` again in the server.');
+      // Handles blocked Direct Messages or timeouts gracefully
+      await interaction.editReply({ 
+        content: '⚠️ Failed to start registration. Please make sure your **Direct Messages (DMs)** are enabled in Server Privacy Settings and try again!' 
+      });
     }
   }
 });
